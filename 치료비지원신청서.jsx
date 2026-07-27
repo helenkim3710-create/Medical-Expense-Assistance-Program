@@ -3559,8 +3559,37 @@ function reviewYMToDateText(ym) {
   return `${y}. ${m}. ＿＿.`; // 발급일은 전달 시점에 기입
 }
 
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureDocx() {
+  if (typeof window !== "undefined" && window.docx) return true;
+  // 혹시 로드가 안 됐으면 대체 CDN에서 재시도
+  const sources = [
+    "https://cdn.jsdelivr.net/npm/docx@8.5/build/index.umd.min.js",
+    "https://unpkg.com/docx@8.5.0/build/index.umd.js",
+  ];
+  for (const src of sources) {
+    try {
+      await loadScript(src);
+      if (window.docx) return true;
+    } catch (e) {
+      /* 다음 소스 시도 */
+    }
+  }
+  return !!(window && window.docx);
+}
+
 async function downloadCertificate(r) {
-  if (typeof window === "undefined" || !window.docx) {
+  const ok = await ensureDocx();
+  if (!ok || !window.docx) {
     alert("증서 생성 모듈을 불러오지 못했습니다. 인터넷 연결을 확인해주세요.");
     return;
   }
