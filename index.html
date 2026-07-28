@@ -71,7 +71,7 @@ const DOCS_BY_TYPE = {
     { id: "d1", name: "진단서 또는 소견서", required: true },
     { id: "d2", name: "진료비 영수증", note: "건수가 많을 경우, 진료비 납입내역서 제출", required: false },
     { id: "d3", name: "원목실 추천서", note: "신부님 또는 수녀님 있는 경우", required: false },
-    { id: "d4", name: "환우사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
+    { id: "d4", name: "환자사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
     { id: "d5", name: "보호자 편지", required: false },
     { id: "d6", name: "주민등록등본", note: "최근 1개월", required: true },
     { id: "d7", name: "수급자 증명원 또는 차상위 본인부담경감 대상 증명서", required: true },
@@ -84,7 +84,7 @@ const DOCS_BY_TYPE = {
     { id: "e1", name: "진단서 또는 소견서", required: true },
     { id: "e2", name: "진료비 영수증", note: "건수가 많을 경우, 진료비 납입내역서 제출", required: false },
     { id: "e3", name: "원목실 추천서", note: "신부님 또는 수녀님 있는 경우", required: false },
-    { id: "e4", name: "환우사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
+    { id: "e4", name: "환자사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
     { id: "e5", name: "보호자 편지", required: false },
     { id: "e6", name: "주민등록등본", note: "최근 1개월", required: true },
     {
@@ -122,7 +122,7 @@ const DOCS_BY_TYPE = {
     { id: "g1", name: "진단서 또는 소견서", required: true },
     { id: "g2", name: "진료비 영수증", note: "건수가 많을 경우, 진료비 납입내역서 제출", required: false },
     { id: "g3", name: "원목실 추천서", note: "신부님 또는 수녀님 있는 경우", required: false },
-    { id: "g4", name: "환우사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
+    { id: "g4", name: "환자사진 이미지", note: "의료적 상황을 알 수 있는 사진", required: false },
     { id: "g5", name: "보호자 편지", required: false },
     { id: "g6", name: "여권 사본 또는 외국인등록증", required: true },
     { id: "g7", name: "건강보험자격확인서", required: false },
@@ -1686,11 +1686,23 @@ const REPORT_DOCS = [
 
 const emptySettle = () => ({ date: "", amount: "", receiptNo: "", note: "" });
 
+/* 병원명·담당자명·환자명으로 신청 건 조회 (공백·대소문자 무시) */
+function findByLookup(rows, lookup) {
+  const norm = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
+  return (rows || []).find(
+    (r) =>
+      norm(r.hospital) === norm(lookup.hospital) &&
+      norm(r.swName) === norm(lookup.swName) &&
+      norm(r.ptName) === norm(lookup.ptName)
+  );
+}
+
 function ReportForm({ rows, setRows }) {
   const [step, setStep] = useState("lookup"); // lookup | form | done
-  const [lookup, setLookup] = useState({ receiptNo: "", ptName: "" });
+  const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
+  const [lookupError, setLookupError] = useState("");
   const [r, setR] = useState({
-    /* 환우 정보 */
+    /* 환자 정보 */
     ptName: "", ptGender: "", ptBirth: "", ptAge: "",
     hospital: "", dept: "", diagnosis: "", applyDate: "",
     /* 금액 */
@@ -1719,8 +1731,7 @@ function ReportForm({ rows, setRows }) {
   const settleTotal = settle.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
 
   const required = [
-    "ptName", "ptGender", "ptBirth", "hospital", "dept", "diagnosis",
-    "applyDate", "grantAmount", "usedAmount", "useFrom", "useTo",
+    "usedAmount", "useFrom", "useTo",
     "treatContent", "swOpinion", "swName",
   ];
   const missing = required.filter((k) => !String(r[k] || "").trim());
@@ -1745,12 +1756,12 @@ function ReportForm({ rows, setRows }) {
     setShowError(true);
     if (canSubmit) {
       /* 관리자 페이지에 결과보고서 제출일 자동 반영 */
-      if (setRows && lookup.receiptNo) {
+      if (setRows && lookup.matchedId) {
         const today = new Date();
         const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
         setRows((s) =>
           s.map((r) =>
-            r.id === lookup.receiptNo.trim()
+            r.id === lookup.matchedId
               ? {
                   ...r,
                   reportDate: stamp,
@@ -1812,7 +1823,7 @@ function ReportForm({ rows, setRows }) {
 
   /* --- 조회 --- */
   if (step === "lookup") {
-    const ok = lookup.receiptNo.trim() && lookup.ptName.trim();
+    const ok = lookup.hospital.trim() && lookup.swName.trim() && lookup.ptName.trim();
     return (
       <main style={{ maxWidth: 520, margin: "0 auto", padding: "44px 24px", fontFamily: font }}>
         <div
@@ -1827,45 +1838,50 @@ function ReportForm({ rows, setRows }) {
             치료비 지원 결과보고서
           </h2>
           <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, margin: "0 0 22px" }}>
-            지원이 확정된 신청 건의 접수번호와 환우명을 입력해주세요.
+            지원이 확정된 신청 건의 병원명·담당자명·환자명을 입력해주세요. 환자 정보는 신청 내용에서 자동으로 불러옵니다.
           </p>
           <div style={{ display: "grid", gap: 14 }}>
-            <Field label="접수번호" required hint="지원 결정 안내문에 기재된 번호">
-              <Input
-                value={lookup.receiptNo}
-                onChange={setL("receiptNo")}
-                placeholder="예: 백난26-01"
-              />
+            <Field label="병원명" required>
+              <Input value={lookup.hospital} onChange={setL("hospital")} placeholder="예: 서울성모병원" />
             </Field>
-            <Field label="환우명" required>
+            <Field label="담당자명" required hint="담당 사회복지사">
+              <Input value={lookup.swName} onChange={setL("swName")} />
+            </Field>
+            <Field label="환자명" required>
               <Input value={lookup.ptName} onChange={setL("ptName")} />
             </Field>
           </div>
+          {lookupError && (
+            <div style={{ fontSize: 12, color: C.seal, marginTop: 12, lineHeight: 1.6 }}>
+              {lookupError}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => {
-              if (ok) {
-                const match = (rows || []).find(
-                  (r) => r.id === lookup.receiptNo.trim() && r.ptName === lookup.ptName.trim()
+              if (!ok) return;
+              const match = findByLookup(rows, lookup);
+              if (!match) {
+                setLookupError(
+                  "일치하는 지원 확정 건을 찾을 수 없습니다. 병원명·담당자명·환자명을 다시 확인해주세요."
                 );
-                if (match) {
-                  setR((s) => ({
-                    ...s,
-                    ptName: match.ptName,
-                    ptGender: match.gender || "",
-                    ptBirth: match.birth || "",
-                    hospital: match.hospital || "",
-                    dept: match.dept || "",
-                    diagnosis: match.diagnosis || "",
-                    applyDate: match.submittedAt || "",
-                    grantAmount: match.grantAmount || "",
-                    swName: match.swName || "",
-                  }));
-                } else {
-                  setR((s) => ({ ...s, ptName: lookup.ptName }));
-                }
-                setStep("form");
+                return;
               }
+              setLookupError("");
+              setLookup((s) => ({ ...s, matchedId: match.id }));
+              setR((s) => ({
+                ...s,
+                ptName: match.ptName,
+                ptGender: match.gender || "",
+                ptBirth: match.birth || "",
+                hospital: match.hospital || "",
+                dept: match.dept || "",
+                diagnosis: match.diagnosis || "",
+                applyDate: match.submittedAt || "",
+                grantAmount: match.grantAmount || "",
+                swName: match.swName || "",
+              }));
+              setStep("form");
             }}
             style={{
               width: "100%",
@@ -1930,7 +1946,7 @@ function ReportForm({ rows, setRows }) {
         >
           <div>
             <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 2 }}>접수번호</div>
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{lookup.receiptNo}</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{lookup.matchedId}</div>
           </div>
           <button
             type="button"
@@ -1952,36 +1968,34 @@ function ReportForm({ rows, setRows }) {
           </button>
         </div>
 
-        {/* 01 환우 정보 */}
-        <Section label="01" title="환우 정보">
-          <div style={grid(200)}>
-            <Field label="환우명" required>
-              <Input value={r.ptName} onChange={set("ptName")} data-invalid={err("ptName")} style={eb("ptName")} />
-            </Field>
-            <Field label="성별" required>
-              <div style={{ paddingTop: 6 }}>
-                <Radio name="rg" checked={r.ptGender === "남"} onChange={() => put("ptGender", "남")}>남</Radio>
-                <Radio name="rg" checked={r.ptGender === "여"} onChange={() => put("ptGender", "여")}>여</Radio>
+        {/* 01 환자 정보 */}
+        <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+              gap: 12,
+              padding: "16px 18px",
+              background: C.fill,
+              border: `1px solid ${C.rule}`,
+              borderRadius: 3,
+            }}
+          >
+            {[
+              ["접수번호", lookup.matchedId],
+              ["환자명", r.ptName],
+              ["성별", r.ptGender],
+              ["생년월일", r.ptBirth],
+              ["진료병원", r.hospital],
+              ["진료과", r.dept],
+              ["진단명", r.diagnosis],
+              ["지원 신청일", r.applyDate],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{k}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{v || "—"}</div>
               </div>
-            </Field>
-            <Field label="생년월일" required>
-              <Input type="date" value={r.ptBirth} onChange={set("ptBirth")} data-invalid={err("ptBirth")} style={eb("ptBirth")} />
-            </Field>
-            <Field label="만 나이">
-              <Inline value={r.ptAge} onChange={set("ptAge")} w={80} suffix="세" type="number" />
-            </Field>
-            <Field label="진료병원" required>
-              <Input value={r.hospital} onChange={set("hospital")} data-invalid={err("hospital")} style={eb("hospital")} />
-            </Field>
-            <Field label="진료과" required>
-              <Input value={r.dept} onChange={set("dept")} data-invalid={err("dept")} style={eb("dept")} />
-            </Field>
-            <Field label="진단명" required>
-              <Input value={r.diagnosis} onChange={set("diagnosis")} data-invalid={err("diagnosis")} style={eb("diagnosis")} />
-            </Field>
-            <Field label="지원 신청일" required>
-              <Input type="date" value={r.applyDate} onChange={set("applyDate")} data-invalid={err("applyDate")} style={eb("applyDate")} />
-            </Field>
+            ))}
           </div>
         </Section>
 
@@ -2436,7 +2450,10 @@ const CERT_DOCS = [
   },
 ];
 
-function CertificateForm() {
+function CertificateForm({ rows }) {
+  const [step, setStep] = useState("lookup"); // lookup | form
+  const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
+  const [lookupError, setLookupError] = useState("");
   const [done, setDone] = useState(false);
   const [showError, setShowError] = useState(false);
   const [files, setFiles] = useState({});
@@ -2456,9 +2473,9 @@ function CertificateForm() {
   });
 
   const set = (k) => (e) => setC((s) => ({ ...s, [k]: e.target.value }));
+  const setL = (k) => (e) => setLookup((s) => ({ ...s, [k]: e.target.value }));
 
   const required = [
-    "ptName", "grantYear", "grantMonth", "diagnosis", "hospital",
     "swName", "swPhone", "eventDate", "place", "attendees", "content",
   ];
   const missing = required.filter((k) => !String(c[k] || "").trim());
@@ -2530,6 +2547,80 @@ function CertificateForm() {
     );
   }
 
+  /* --- 조회 --- */
+  if (step === "lookup") {
+    const ok = lookup.hospital.trim() && lookup.swName.trim() && lookup.ptName.trim();
+    return (
+      <main style={{ maxWidth: 520, margin: "0 auto", padding: "44px 24px", fontFamily: font }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.rule}`,
+            borderRadius: 4,
+            padding: "30px 28px",
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: C.ink }}>
+            치료비 지원증서 전달
+          </h2>
+          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, margin: "0 0 22px" }}>
+            지원이 확정된 신청 건의 병원명·담당자명·환자명을 입력해주세요. 환자 정보는 신청 내용에서 자동으로 불러옵니다.
+          </p>
+          <div style={{ display: "grid", gap: 14 }}>
+            <Field label="병원명" required>
+              <Input value={lookup.hospital} onChange={setL("hospital")} placeholder="예: 서울성모병원" />
+            </Field>
+            <Field label="담당자명" required hint="담당 사회복지사">
+              <Input value={lookup.swName} onChange={setL("swName")} />
+            </Field>
+            <Field label="환자명" required>
+              <Input value={lookup.ptName} onChange={setL("ptName")} />
+            </Field>
+          </div>
+          {lookupError && (
+            <div style={{ fontSize: 12, color: C.seal, marginTop: 12, lineHeight: 1.6 }}>
+              {lookupError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!ok) return;
+              const match = findByLookup(rows, lookup);
+              if (!match) {
+                setLookupError(
+                  "일치하는 지원 확정 건을 찾을 수 없습니다. 병원명·담당자명·환자명을 다시 확인해주세요."
+                );
+                return;
+              }
+              setLookupError("");
+              setLookup((s) => ({ ...s, matchedId: match.id }));
+              const ym = match.reviewYM || "";
+              setC((s) => ({
+                ...s,
+                ptName: match.ptName,
+                diagnosis: match.diagnosis || "",
+                hospital: match.hospital || "",
+                swName: match.swName || "",
+                swPhone: match.swPhone || "",
+                grantYear: ym ? ym.slice(0, 4) : "",
+                grantMonth: ym ? String(Number(ym.slice(5, 7))) : "",
+              }));
+              setStep("form");
+            }}
+            style={{
+              width: "100%", marginTop: 20, padding: "11px 0", fontSize: 14, fontWeight: 700,
+              fontFamily: "inherit", color: "#fff", background: C.deep, border: "none",
+              borderRadius: 3, cursor: "pointer",
+            }}
+          >
+            불러오기
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div style={{ fontFamily: font, paddingBottom: 90 }}>
       <main style={{ maxWidth: 840, margin: "0 auto", padding: "28px 24px 0" }}>
@@ -2552,46 +2643,35 @@ function CertificateForm() {
         </div>
 
         {/* 01 환자 정보 */}
-        <Section label="01" title="환자 정보">
-          <div style={grid(200)}>
-            <Field label="환자명" required>
-              <Input value={c.ptName} onChange={set("ptName")} data-invalid={err("ptName")} style={eb("ptName")} />
-            </Field>
-            <Field label="지원받은 시기" required>
-              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
-                <Inline
-                  value={c.grantYear}
-                  onChange={set("grantYear")}
-                  w={90}
-                  suffix="년"
-                  type="number"
-                  ph="2026"
-                  invalid={err("grantYear")}
-                />
-                <Inline
-                  value={c.grantMonth}
-                  onChange={set("grantMonth")}
-                  w={70}
-                  suffix="월"
-                  type="number"
-                  invalid={err("grantMonth")}
-                />
+        <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+              gap: 12,
+              padding: "16px 18px",
+              background: C.fill,
+              border: `1px solid ${C.rule}`,
+              borderRadius: 3,
+            }}
+          >
+            {[
+              ["접수번호", lookup.matchedId],
+              ["환자명", c.ptName],
+              ["지원받은 시기", c.grantYear && c.grantMonth ? `${c.grantYear}년 ${c.grantMonth}월` : "—"],
+              ["진단명", c.diagnosis],
+              ["진료병원", c.hospital],
+              ["담당 사회복지사", c.swName],
+              ["담당자 전화", c.swPhone],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{k}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{v || "—"}</div>
               </div>
-            </Field>
-            <Field label="진단명" required wide>
-              <Input value={c.diagnosis} onChange={set("diagnosis")} data-invalid={err("diagnosis")} style={eb("diagnosis")} />
-            </Field>
-            <Field label="진료병원" required>
-              <Input value={c.hospital} onChange={set("hospital")} data-invalid={err("hospital")} style={eb("hospital")} />
-            </Field>
-            <Field label="담당 사회복지사 (이름)" required>
-              <Input value={c.swName} onChange={set("swName")} data-invalid={err("swName")} style={eb("swName")} />
-            </Field>
-            <Field label="담당 사회복지사 (전화)" required>
-              <Input value={c.swPhone} onChange={set("swPhone")} data-invalid={err("swPhone")} style={eb("swPhone")} />
-            </Field>
+            ))}
           </div>
         </Section>
+
 
         {/* 02 전달식 */}
         <Section label="02" title="전달식 진행">
@@ -2762,6 +2842,9 @@ const EXT_DOCS = [
 const emptyExtRow = () => ({ date: "", amount: "", receiptNo: "", note: "" });
 
 function ExtensionForm({ allRows, setAllRows }) {
+  const [step, setStep] = useState("lookup"); // lookup | form
+  const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
+  const [lookupError, setLookupError] = useState("");
   const [done, setDone] = useState(false);
   const [showError, setShowError] = useState(false);
   const [files, setFiles] = useState({});
@@ -2782,6 +2865,7 @@ function ExtensionForm({ allRows, setAllRows }) {
 
   const set = (k) => (e) => setX((s) => ({ ...s, [k]: e.target.value }));
   const put = (k, v) => setX((s) => ({ ...s, [k]: v }));
+  const setL = (k) => (e) => setLookup((s) => ({ ...s, [k]: e.target.value }));
 
   const A = Number(x.grantAmount) || 0;
   const B = Number(x.usedAmount) || 0;
@@ -2794,8 +2878,7 @@ function ExtensionForm({ allRows, setAllRows }) {
   const rowTotal = rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
 
   const required = [
-    "receiptNo", "ptName", "ptGender", "ptBirth", "hospital", "diagnosis", "applyPeriod",
-    "grantAmount", "usedAmount", "planFrom", "planTo", "extFrom", "extTo",
+    "usedAmount", "planFrom", "planTo", "extFrom", "extTo",
     "usageDetail", "futurePlan", "swName",
   ];
   const missing = required.filter((k) => !String(x[k] || "").trim());
@@ -2902,6 +2985,81 @@ function ExtensionForm({ allRows, setAllRows }) {
     );
   }
 
+  /* --- 조회 --- */
+  if (step === "lookup") {
+    const ok = lookup.hospital.trim() && lookup.swName.trim() && lookup.ptName.trim();
+    return (
+      <main style={{ maxWidth: 520, margin: "0 auto", padding: "44px 24px", fontFamily: font }}>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.rule}`,
+            borderRadius: 4,
+            padding: "30px 28px",
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: C.ink }}>
+            치료비 지원 연장계획서
+          </h2>
+          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, margin: "0 0 22px" }}>
+            지원이 확정된 신청 건의 병원명·담당자명·환자명을 입력해주세요. 환자 정보와 지원금액은 신청 내용에서 자동으로 불러옵니다.
+          </p>
+          <div style={{ display: "grid", gap: 14 }}>
+            <Field label="병원명" required>
+              <Input value={lookup.hospital} onChange={setL("hospital")} placeholder="예: 서울성모병원" />
+            </Field>
+            <Field label="담당자명" required hint="담당 사회복지사">
+              <Input value={lookup.swName} onChange={setL("swName")} />
+            </Field>
+            <Field label="환자명" required>
+              <Input value={lookup.ptName} onChange={setL("ptName")} />
+            </Field>
+          </div>
+          {lookupError && (
+            <div style={{ fontSize: 12, color: C.seal, marginTop: 12, lineHeight: 1.6 }}>
+              {lookupError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!ok) return;
+              const match = findByLookup(allRows, lookup);
+              if (!match) {
+                setLookupError(
+                  "일치하는 지원 확정 건을 찾을 수 없습니다. 병원명·담당자명·환자명을 다시 확인해주세요."
+                );
+                return;
+              }
+              setLookupError("");
+              setLookup((s) => ({ ...s, matchedId: match.id }));
+              setX((s) => ({
+                ...s,
+                receiptNo: match.id,
+                ptName: match.ptName || "",
+                ptGender: match.gender || "",
+                ptBirth: match.birth || "",
+                hospital: match.hospital || "",
+                diagnosis: match.diagnosis || "",
+                applyPeriod: match.reviewYM ? match.reviewYM.replace("-", "년 ") + "월" : "",
+                grantAmount: match.grantAmount || "",
+                swName: match.swName || "",
+              }));
+              setStep("form");
+            }}
+            style={{
+              width: "100%", marginTop: 20, padding: "11px 0", fontSize: 14, fontWeight: 700,
+              fontFamily: "inherit", color: "#fff", background: C.deep, border: "none",
+              borderRadius: 3, cursor: "pointer",
+            }}
+          >
+            불러오기
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div style={{ fontFamily: font, paddingBottom: 90 }}>
       <main style={{ maxWidth: 840, margin: "0 auto", padding: "28px 24px 0" }}>
@@ -2923,57 +3081,32 @@ function ExtensionForm({ allRows, setAllRows }) {
         </div>
 
         {/* 01 환자 정보 */}
-        <Section label="01" title="환자 정보">
-          <div style={grid(200)}>
-            <Field label="접수번호" required hint="입력하면 지원 정보가 자동으로 채워집니다.">
-              <Input
-                value={x.receiptNo}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const match = (allRows || []).find((r) => r.id === v.trim());
-                  if (match) {
-                    setX((s) => ({
-                      ...s,
-                      receiptNo: v,
-                      ptName: match.ptName || "",
-                      ptGender: match.gender || "",
-                      ptBirth: match.birth || "",
-                      hospital: match.hospital || "",
-                      diagnosis: match.diagnosis || "",
-                      applyPeriod: match.reviewYM ? match.reviewYM.replace("-", "년 ") + "월" : "",
-                      grantAmount: match.grantAmount || "",
-                      swName: match.swName || "",
-                    }));
-                  } else {
-                    setX((s) => ({ ...s, receiptNo: v }));
-                  }
-                }}
-                data-invalid={err("receiptNo")}
-                style={eb("receiptNo")}
-                placeholder="예: 백난26-01"
-              />
-            </Field>
-            <Field label="환자명" required>
-              <Input value={x.ptName} onChange={set("ptName")} data-invalid={err("ptName")} style={eb("ptName")} />
-            </Field>
-            <Field label="성별" required>
-              <div style={{ paddingTop: 6 }}>
-                <Radio name="xg" checked={x.ptGender === "남"} onChange={() => put("ptGender", "남")}>남</Radio>
-                <Radio name="xg" checked={x.ptGender === "여"} onChange={() => put("ptGender", "여")}>여</Radio>
+        <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+              gap: 12,
+              padding: "16px 18px",
+              background: C.fill,
+              border: `1px solid ${C.rule}`,
+              borderRadius: 3,
+            }}
+          >
+            {[
+              ["접수번호", x.receiptNo],
+              ["환자명", x.ptName],
+              ["성별", x.ptGender],
+              ["생년월일", x.ptBirth],
+              ["진료병원", x.hospital],
+              ["진단명", x.diagnosis],
+              ["지원 신청시기", x.applyPeriod],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{k}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{v || "—"}</div>
               </div>
-            </Field>
-            <Field label="생년월일" required>
-              <Input type="date" value={x.ptBirth} onChange={set("ptBirth")} data-invalid={err("ptBirth")} style={eb("ptBirth")} />
-            </Field>
-            <Field label="진료병원" required>
-              <Input value={x.hospital} onChange={set("hospital")} data-invalid={err("hospital")} style={eb("hospital")} />
-            </Field>
-            <Field label="진단명" required>
-              <Input value={x.diagnosis} onChange={set("diagnosis")} data-invalid={err("diagnosis")} style={eb("diagnosis")} />
-            </Field>
-            <Field label="지원 신청시기" required hint="예: 2025년 3월">
-              <Input value={x.applyPeriod} onChange={set("applyPeriod")} data-invalid={err("applyPeriod")} style={eb("applyPeriod")} />
-            </Field>
+            ))}
           </div>
         </Section>
 
@@ -3914,7 +4047,7 @@ const SAMPLE = [
       { name: "주민등록등본", ok: true }, { name: "지방세 과세증명서", ok: true },
       { name: "건강보험납입증명서", ok: true }, { name: "소득서류", ok: true },
       { name: "임대차계약서", ok: true }, { name: "보험가입조회 결과서", ok: true },
-      { name: "개인정보 동의서", ok: true }, { name: "환우 사진", ok: true },
+      { name: "개인정보 동의서", ok: true }, { name: "환자 사진", ok: true },
       { name: "보호자 편지", ok: true },
     ],
   },
@@ -3931,7 +4064,7 @@ const SAMPLE = [
       { name: "진단서", ok: true }, { name: "진료비 영수증", ok: true },
       { name: "주민등록등본", ok: true }, { name: "수급자 증명원", ok: true },
       { name: "보험가입조회 결과서", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: true }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: true }, { name: "보호자 편지", ok: true },
     ],
   },
   {
@@ -3947,7 +4080,7 @@ const SAMPLE = [
       { name: "진단서", ok: true }, { name: "진료비 영수증", ok: true },
       { name: "주민등록등본", ok: true }, { name: "수급자 증명원", ok: true },
       { name: "보험가입조회 결과서", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: true }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: true }, { name: "보호자 편지", ok: true },
       { name: "원목실 추천서", ok: true },
     ],
   },
@@ -3965,7 +4098,7 @@ const SAMPLE = [
       { name: "주민등록등본", ok: true }, { name: "지방세 과세증명서", ok: true },
       { name: "건강보험자격확인서", ok: true }, { name: "건강보험납입증명서", ok: true },
       { name: "소득서류", ok: true }, { name: "부채증명원", ok: false },
-      { name: "개인정보 동의서", ok: true }, { name: "환우 사진", ok: true },
+      { name: "개인정보 동의서", ok: true }, { name: "환자 사진", ok: true },
       { name: "보호자 편지", ok: true },
     ],
   },
@@ -3983,7 +4116,7 @@ const SAMPLE = [
       { name: "주민등록등본", ok: true }, { name: "지방세 과세증명서", ok: true },
       { name: "건강보험납입증명서", ok: true }, { name: "소득서류", ok: false },
       { name: "부채증명원", ok: false }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: false }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: false }, { name: "보호자 편지", ok: true },
     ],
   },
   {
@@ -4023,7 +4156,7 @@ const SAMPLE = [
       { name: "진단서", ok: true }, { name: "진료비 영수증", ok: true },
       { name: "여권 사본 / 외국인등록증", ok: true }, { name: "소득서류", ok: true },
       { name: "임대차계약서", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: false }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: false }, { name: "보호자 편지", ok: true },
     ],
   },
   {
@@ -4064,7 +4197,7 @@ const SAMPLE = [
       { name: "주민등록등본", ok: true }, { name: "지방세 과세증명서", ok: true },
       { name: "건강보험납입증명서", ok: true }, { name: "소득서류", ok: true },
       { name: "임대차계약서", ok: true }, { name: "부채증명원", ok: true },
-      { name: "개인정보 동의서", ok: true }, { name: "환우 사진", ok: true },
+      { name: "개인정보 동의서", ok: true }, { name: "환자 사진", ok: true },
       { name: "보호자 편지", ok: true },
     ],
   },
@@ -4101,7 +4234,7 @@ const SAMPLE = [
       { name: "진단서", ok: true }, { name: "진료비 영수증", ok: true },
       { name: "주민등록등본", ok: true }, { name: "수급자 증명원", ok: true },
       { name: "보험가입조회 결과서", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: true }, { name: "보호자 편지", ok: false },
+      { name: "환자 사진", ok: true }, { name: "보호자 편지", ok: false },
     ],
   },
   {
@@ -4141,7 +4274,7 @@ const SAMPLE = [
       { name: "주민등록등본", ok: true }, { name: "차상위 본인부담경감 증명서", ok: true },
       { name: "보험가입조회 결과서", ok: true }, { name: "소득서류", ok: true },
       { name: "부채증명원", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: false }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: false }, { name: "보호자 편지", ok: true },
     ],
   },
   {
@@ -4157,7 +4290,7 @@ const SAMPLE = [
       { name: "진단서", ok: true }, { name: "진료비 영수증", ok: true },
       { name: "주민등록등본", ok: true }, { name: "수급자 증명원", ok: true },
       { name: "보험가입조회 결과서", ok: true }, { name: "개인정보 동의서", ok: true },
-      { name: "환우 사진", ok: true }, { name: "보호자 편지", ok: true },
+      { name: "환자 사진", ok: true }, { name: "보호자 편지", ok: true },
     ],
   },
 ];
@@ -8065,7 +8198,7 @@ function App() {
       ) : screen === "report" ? (
         <ReportForm rows={rows} setRows={setRows} />
       ) : screen === "cert" ? (
-        <CertificateForm />
+        <CertificateForm rows={rows} />
       ) : screen === "ext" ? (
         <ExtensionForm allRows={rows} setAllRows={setRows} />
       ) : screen === "advisor" ? (
