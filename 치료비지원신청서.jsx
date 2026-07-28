@@ -4308,6 +4308,7 @@ function AdminPage() {
   const [progFilter, setProgFilter] = useState("all");
   const [selected, setSelected] = useState([]);
   const [docsOpen, setDocsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [mailFor, setMailFor] = useState(null); // 메일 발송 대상 건
   const [mailFile, setMailFile] = useState(null); // 첨부 공문 PDF
   const [mailSent, setMailSent] = useState({}); // { [rowId]: 발송일시 }
@@ -5040,7 +5041,7 @@ function AdminPage() {
                     <td style={{ ...td, textAlign: "center", padding: "5px 7px" }}>
                       <button
                         type="button"
-                        onClick={() => { setDraft({ ...r, _origId: r.id }); setDocsOpen(false); }}
+                        onClick={() => { setDraft({ ...r, _origId: r.id }); setDocsOpen(false); setEditOpen(false); }}
                         style={{
                           padding: "4px 10px", fontSize: 11, fontFamily: "inherit", fontWeight: 600,
                           color: "#fff", background: C.deep, border: "none", borderRadius: 3,
@@ -5552,9 +5553,30 @@ function AdminPage() {
                   marginBottom: 18,
                 }}
               >
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.deep, marginBottom: 12 }}>
-                  신청 정보 수정
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditOpen((v) => !v)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    padding: 0,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    marginBottom: editOpen ? 12 : 0,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.deep }}>신청 정보 수정</span>
+                  <span style={{ fontSize: 11, color: C.deep, fontWeight: 600 }}>
+                    {editOpen ? "접기 ▲" : "열기 ▼"}
+                  </span>
+                </button>
+
+                {editOpen && (
+                <>
                 <div style={grid(180)}>
                   <Field label="환자명">
                     <Input value={draft.ptName || ""} onChange={setD("ptName")} />
@@ -5603,6 +5625,8 @@ function AdminPage() {
                     <Input value={draft.swEmail || ""} onChange={setD("swEmail")} />
                   </Field>
                 </div>
+                </>
+                )}
               </div>
 
               <div style={{ display: "grid", gap: 14 }}>
