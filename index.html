@@ -5774,47 +5774,6 @@ function AdminPage() {
                   </div>
                 )}
 
-                <Field label="결과보고서 제출일">
-                  <div style={{ paddingTop: 4 }}>
-                    {draft.reportDate ? (
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: C.ok,
-                          ...(draft.approvalSubmitted
-                            ? {
-                                border: `1.5px solid ${C.ok}`,
-                                borderRadius: 999,
-                                padding: "2px 12px",
-                              }
-                            : {}),
-                        }}
-                      >
-                        {draft.reportDate}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 13, color: C.muted }}>미제출</span>
-                    )}
-                    <div style={{ marginTop: 10 }}>
-                      <Check
-                        checked={!!draft.approvalSubmitted}
-                        onChange={() =>
-                          setDraft((s) => ({ ...s, approvalSubmitted: !s.approvalSubmitted }))
-                        }
-                        disabled={!draft.reportDate}
-                      >
-                        결재 상신
-                      </Check>
-                    </div>
-                  </div>
-                  {!draft.reportDate && (
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
-                      결과보고서가 제출되면 결재 상신을 표시할 수 있습니다.
-                    </div>
-                  )}
-                </Field>
-
                 <Field label="지원 결정금액" hint="부결인 경우 비워 두세요.">
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <Inline value={draft.grantAmount} onChange={setD("grantAmount")} suffix="원" w={170} type="number" />
@@ -5839,6 +5798,17 @@ function AdminPage() {
                   </Field>
                   <Field label="결과보고서 제출일" hint="미제출이면 비워 두세요.">
                     <Input type="date" value={draft.reportDate} onChange={setD("reportDate")} />
+                    <div style={{ marginTop: 8 }}>
+                      <Check
+                        checked={!!draft.approvalSubmitted}
+                        onChange={() =>
+                          setDraft((s) => ({ ...s, approvalSubmitted: !s.approvalSubmitted }))
+                        }
+                        disabled={!draft.reportDate}
+                      >
+                        결재 상신
+                      </Check>
+                    </div>
                   </Field>
                   <Field label="동의자">
                     <select value={draft.consentBy} onChange={setD("consentBy")} style={inputStyle}>
