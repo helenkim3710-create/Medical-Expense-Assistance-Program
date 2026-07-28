@@ -1049,30 +1049,34 @@ function ApplyForm() {
                   </div>
                 </Field>
 
-                <Field label="사회보장 수혜여부">
-                  <div style={{ paddingTop: 4 }}>
-                    <Radio name="wf" checked={f.welfare === "basic"} onChange={() => put("welfare", "basic")}>국민기초생활수급권자</Radio>
-                    {f.welfare === "basic" && (
-                      <span>월 정기보조금 <Inline value={f.basicSubsidy} onChange={set("basicSubsidy")} suffix="원" type="number" /></span>
-                    )}
-                    <div style={{ marginTop: 4 }}>
-                      <Radio name="wf" checked={f.welfare === "near"} onChange={() => put("welfare", "near")}>차상위</Radio>
-                      <Radio name="wf" checked={f.welfare === "none"} onChange={() => put("welfare", "none")}>없음</Radio>
+                {!isForeign && (
+                  <Field label="사회보장 수혜여부">
+                    <div style={{ paddingTop: 4 }}>
+                      <Radio name="wf" checked={f.welfare === "basic"} onChange={() => put("welfare", "basic")}>국민기초생활수급권자</Radio>
+                      {f.welfare === "basic" && (
+                        <span>월 정기보조금 <Inline value={f.basicSubsidy} onChange={set("basicSubsidy")} suffix="원" type="number" /></span>
+                      )}
+                      <div style={{ marginTop: 4 }}>
+                        <Radio name="wf" checked={f.welfare === "near"} onChange={() => put("welfare", "near")}>차상위</Radio>
+                        <Radio name="wf" checked={f.welfare === "none"} onChange={() => put("welfare", "none")}>없음</Radio>
+                      </div>
                     </div>
-                  </div>
-                </Field>
+                  </Field>
+                )}
 
-                <Field label="의료보장 수혜여부">
-                  <div style={{ paddingTop: 4 }}>
-                    <Radio name="med" checked={f.medical === "nhi"} onChange={() => put("medical", "nhi")}>국민건강보험</Radio>
-                    <Radio name="med" checked={f.medical === "aid1"} onChange={() => put("medical", "aid1")}>의료급여 1종</Radio>
-                    <Radio name="med" checked={f.medical === "aid2"} onChange={() => put("medical", "aid2")}>의료급여 2종</Radio>
-                    <div style={{ marginTop: 4 }}>
-                      <Radio name="med" checked={f.medical === "near"} onChange={() => put("medical", "near")}>차상위 본인경감대상</Radio>
-                      <Radio name="med" checked={f.medical === "none"} onChange={() => put("medical", "none")}>없음</Radio>
+                {!isForeign && (
+                  <Field label="의료보장 수혜여부">
+                    <div style={{ paddingTop: 4 }}>
+                      <Radio name="med" checked={f.medical === "nhi"} onChange={() => put("medical", "nhi")}>국민건강보험</Radio>
+                      <Radio name="med" checked={f.medical === "aid1"} onChange={() => put("medical", "aid1")}>의료급여 1종</Radio>
+                      <Radio name="med" checked={f.medical === "aid2"} onChange={() => put("medical", "aid2")}>의료급여 2종</Radio>
+                      <div style={{ marginTop: 4 }}>
+                        <Radio name="med" checked={f.medical === "near"} onChange={() => put("medical", "near")}>차상위 본인경감대상</Radio>
+                        <Radio name="med" checked={f.medical === "none"} onChange={() => put("medical", "none")}>없음</Radio>
+                      </div>
                     </div>
-                  </div>
-                </Field>
+                  </Field>
+                )}
 
                 <Field label="장애등록여부">
                   <div style={{ paddingTop: 4 }}>
