@@ -5355,37 +5355,110 @@ function AdminPage() {
                   >
                     <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>첨부서류</span>
                     <span style={{ fontSize: 10.5, color: C.muted }}>
-                      원본은 전체 일괄 다운로드에 포함됩니다
+                      항목을 눌러 파일을 올리거나 교체할 수 있습니다
                     </span>
                   </div>
 
                   {(draft.docs || []).length > 0 ? (
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    <div style={{ display: "grid", gap: 6 }}>
                       {(draft.docs || []).map((d, i) => (
-                        <button
+                        <div
                           key={i}
-                          type="button"
-                          disabled={!d.ok}
-                          onClick={() =>
-                            alert(
-                              `${d.name}\n\n실제 운영 시 업로드된 원본 파일이 다운로드됩니다.`
-                            )
-                          }
                           style={{
-                            padding: "5px 11px",
-                            fontSize: 11.5,
-                            fontFamily: "inherit",
-                            fontWeight: 500,
-                            borderRadius: 3,
-                            cursor: d.ok ? "pointer" : "default",
-                            border: `1px solid ${d.ok ? C.rule : "#E6E1D8"}`,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "8px 11px",
                             background: d.ok ? C.card : C.paper,
-                            color: d.ok ? C.ink : "#BDB6A8",
+                            border: `1px solid ${d.ok ? C.rule : "#E6E1D8"}`,
+                            borderRadius: 3,
                           }}
                         >
-                          {d.ok ? "↓ " : "✕ "}
-                          {d.name}
-                        </button>
+                          <span
+                            style={{
+                              width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                              fontSize: 10, lineHeight: "16px", textAlign: "center",
+                              background: d.ok ? C.ok : "transparent",
+                              border: d.ok ? "none" : `1.5px solid ${C.rule}`,
+                              color: "#fff",
+                            }}
+                          >
+                            {d.ok ? "✓" : ""}
+                          </span>
+                          <span
+                            style={{
+                              flex: 1, fontSize: 12, minWidth: 0,
+                              fontWeight: d.ok ? 600 : 400,
+                              color: d.ok ? C.ink : C.muted,
+                            }}
+                          >
+                            {d.name}
+                            {d.fileName && (
+                              <span style={{ fontSize: 11, fontWeight: 400, color: C.muted, marginLeft: 6 }}>
+                                · {d.fileName}
+                              </span>
+                            )}
+                          </span>
+                          {d.ok && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                alert(`${d.name}\n\n실제 운영 시 업로드된 원본 파일이 다운로드됩니다.`)
+                              }
+                              style={{
+                                padding: "3px 9px", fontSize: 11, fontFamily: "inherit",
+                                fontWeight: 600, color: C.deep, background: C.card,
+                                border: `1px solid ${C.deep}`, borderRadius: 3, cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              ↓ 보기
+                            </button>
+                          )}
+                          <label
+                            style={{
+                              padding: "3px 9px", fontSize: 11, fontFamily: "inherit",
+                              fontWeight: 600, color: "#fff", background: C.deep,
+                              borderRadius: 3, cursor: "pointer", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {d.ok ? "교체" : "업로드"}
+                            <input
+                              type="file"
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setDraft((s) => ({
+                                  ...s,
+                                  docs: (s.docs || []).map((x, xi) =>
+                                    xi === i ? { ...x, ok: true, fileName: file.name } : x
+                                  ),
+                                }));
+                              }}
+                            />
+                          </label>
+                          {d.ok && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraft((s) => ({
+                                  ...s,
+                                  docs: (s.docs || []).map((x, xi) =>
+                                    xi === i ? { ...x, ok: false, fileName: "" } : x
+                                  ),
+                                }))
+                              }
+                              style={{
+                                border: "none", background: "transparent", color: C.seal,
+                                cursor: "pointer", fontSize: 14, padding: "0 2px",
+                              }}
+                              title="삭제"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -5393,6 +5466,69 @@ function AdminPage() {
                       등록된 첨부서류가 없습니다.
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* 신청 정보 수정 */}
+              <div
+                style={{
+                  padding: "16px 18px",
+                  background: C.card,
+                  border: `1px solid ${C.rule}`,
+                  borderRadius: 3,
+                  marginBottom: 18,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.deep, marginBottom: 12 }}>
+                  신청 정보 수정
+                </div>
+                <div style={grid(180)}>
+                  <Field label="환자명">
+                    <Input value={draft.ptName || ""} onChange={setD("ptName")} />
+                  </Field>
+                  <Field label="성별">
+                    <div style={{ paddingTop: 6 }}>
+                      <Radio name="dg" checked={draft.gender === "남"} onChange={() => setDraft((s) => ({ ...s, gender: "남" }))}>남</Radio>
+                      <Radio name="dg" checked={draft.gender === "여"} onChange={() => setDraft((s) => ({ ...s, gender: "여" }))}>여</Radio>
+                    </div>
+                  </Field>
+                  <Field label="생년월일">
+                    <Input type="date" value={draft.birth || ""} onChange={setD("birth")} />
+                  </Field>
+                  <Field label="진단명">
+                    <Input value={draft.diagnosis || ""} onChange={setD("diagnosis")} />
+                  </Field>
+                  <Field label="진료병원">
+                    <Input value={draft.hospital || ""} onChange={setD("hospital")} />
+                  </Field>
+                  <Field label="진료과">
+                    <Input value={draft.dept || ""} onChange={setD("dept")} />
+                  </Field>
+                  <Field label="신청 유형">
+                    <select
+                      value={draft.type || ""}
+                      onChange={setD("type")}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                    >
+                      <option value="basic">기초생활수급자</option>
+                      <option value="insured">건강보험 가입자</option>
+                      <option value="foreign">외국인</option>
+                    </select>
+                  </Field>
+                  <Field label="신청금액">
+                    <Input type="number" value={draft.requestAmount || ""} onChange={setD("requestAmount")} />
+                  </Field>
+                </div>
+                <div style={{ ...grid(180), marginTop: 12 }}>
+                  <Field label="담당자명">
+                    <Input value={draft.swName || ""} onChange={setD("swName")} />
+                  </Field>
+                  <Field label="담당자 연락처">
+                    <Input value={draft.swPhone || ""} onChange={setD("swPhone")} />
+                  </Field>
+                  <Field label="담당자 이메일">
+                    <Input value={draft.swEmail || ""} onChange={setD("swEmail")} />
+                  </Field>
                 </div>
               </div>
 
