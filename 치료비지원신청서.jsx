@@ -4300,6 +4300,17 @@ const td = {
   background: "#fff",
 };
 
+/* 좌측 고정 열 (가로 스크롤 시 고정) */
+const STICKY_LEFT = [0, 34, 84]; // 체크박스(34) · 심의(50) 폭 누적 시작점
+const stickyCell = (idx, base, bg) => ({
+  ...base,
+  position: "sticky",
+  left: STICKY_LEFT[idx],
+  zIndex: idx === 0 ? 5 : 4,
+  background: bg,
+  boxShadow: idx === 2 ? "2px 0 4px -2px rgba(0,0,0,0.18)" : undefined,
+});
+
 function AdminPage() {
   const [rows, setRows] = useState(SAMPLE);
   const [budgets, setBudgets] = useState(null); // {leukemia, transplant, emergency}
@@ -5006,7 +5017,7 @@ function AdminPage() {
           <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: 1900 }}>
             <thead>
               <tr>
-                <th style={{ ...th, width: 34 }}>
+                <th style={{ ...stickyCell(0, th, "#EDEAE3"), width: 34, zIndex: 6 }}>
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -5014,8 +5025,10 @@ function AdminPage() {
                     style={{ accentColor: C.deep, cursor: "pointer" }}
                   />
                 </th>
+                <th style={{ ...stickyCell(1, th, "#EDEAE3"), width: 50, zIndex: 6 }}>심의</th>
+                <th style={{ ...stickyCell(2, th, "#EDEAE3"), zIndex: 6 }}>사업</th>
                 {[
-                  "", "사업", "날짜", "접수번호", "환자명", "성별", "생년월일", "나이", "진단명", "병원",
+                  "날짜", "접수번호", "환자명", "성별", "생년월일", "나이", "진단명", "병원",
                   "신청금액", "결정금액", "예산 잔액", "집행률(%)", "후원자", "동의자",
                   "초상 공개 여부", "결과보고서", "비고", "담당자", "담당자 연락처", "담당자 메일",
                 ].map((h, i) => (
@@ -5032,7 +5045,7 @@ function AdminPage() {
                 const rem = p && GRANTED.includes(r.status) ? remainLabel(p.endDate) : null;
                 return (
                   <tr key={r.id} style={selected.includes(r.id) ? { background: C.deepSoft } : undefined}>
-                    <td style={{ ...td, textAlign: "center", padding: "5px 7px", background: selected.includes(r.id) ? C.deepSoft : "#fff" }}>
+                    <td style={{ ...stickyCell(0, td, selected.includes(r.id) ? C.deepSoft : "#fff"), textAlign: "center", padding: "5px 7px", width: 34 }}>
                       <input
                         type="checkbox"
                         checked={selected.includes(r.id)}
@@ -5040,7 +5053,7 @@ function AdminPage() {
                         style={{ accentColor: C.deep, cursor: "pointer" }}
                       />
                     </td>
-                    <td style={{ ...td, textAlign: "center", padding: "5px 7px" }}>
+                    <td style={{ ...stickyCell(1, td, selected.includes(r.id) ? C.deepSoft : "#fff"), textAlign: "center", padding: "5px 7px", width: 50 }}>
                       <button
                         type="button"
                         onClick={() => { setDraft({ ...r, _origId: r.id }); setDocsOpen(false); setEditOpen(false); }}
@@ -5053,7 +5066,7 @@ function AdminPage() {
                         심의
                       </button>
                     </td>
-                    <td style={{ ...td, textAlign: "center" }}>
+                    <td style={{ ...stickyCell(2, td, selected.includes(r.id) ? C.deepSoft : "#fff"), textAlign: "center" }}>
                       {(() => {
                         const pg = PROGRAMS.find((x) => x.id === r.program);
                         return pg ? (
@@ -5739,7 +5752,7 @@ function AdminPage() {
                 )}
 
                 <Field label="결과보고서 제출일">
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", paddingTop: 4 }}>
+                  <div style={{ paddingTop: 4 }}>
                     {draft.reportDate ? (
                       <span
                         style={{
@@ -5760,15 +5773,17 @@ function AdminPage() {
                     ) : (
                       <span style={{ fontSize: 13, color: C.muted }}>미제출</span>
                     )}
-                    <Check
-                      checked={!!draft.approvalSubmitted}
-                      onChange={() =>
-                        setDraft((s) => ({ ...s, approvalSubmitted: !s.approvalSubmitted }))
-                      }
-                      disabled={!draft.reportDate}
-                    >
-                      결재 상신
-                    </Check>
+                    <div style={{ marginTop: 10 }}>
+                      <Check
+                        checked={!!draft.approvalSubmitted}
+                        onChange={() =>
+                          setDraft((s) => ({ ...s, approvalSubmitted: !s.approvalSubmitted }))
+                        }
+                        disabled={!draft.reportDate}
+                      >
+                        결재 상신
+                      </Check>
+                    </div>
                   </div>
                   {!draft.reportDate && (
                     <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
