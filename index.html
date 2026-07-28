@@ -4324,15 +4324,15 @@ const td = {
   background: "#fff",
 };
 
-/* 좌측 고정 열 (가로 스크롤 시 고정) */
-const STICKY_LEFT = [0, 34, 84]; // 체크박스(34) · 심의(50) 폭 누적 시작점
+/* 체크박스 · 심의 열 좌측 고정 (가로 스크롤 시 고정) */
+const STICKY_LEFT = [0, 34]; // 체크박스(34) 폭 다음이 심의
 const stickyCell = (idx, base, bg) => ({
   ...base,
   position: "sticky",
   left: STICKY_LEFT[idx],
-  zIndex: idx === 0 ? 5 : 4,
+  zIndex: 4,
   background: bg,
-  boxShadow: idx === 2 ? "2px 0 4px -2px rgba(0,0,0,0.18)" : undefined,
+  boxShadow: idx === 1 ? "2px 0 4px -2px rgba(0,0,0,0.18)" : undefined,
 });
 
 function AdminPage() {
@@ -5050,9 +5050,8 @@ function AdminPage() {
                   />
                 </th>
                 <th style={{ ...stickyCell(1, th, "#EDEAE3"), width: 50, zIndex: 6 }}>심의</th>
-                <th style={{ ...stickyCell(2, th, "#EDEAE3"), zIndex: 6 }}>사업</th>
                 {[
-                  "날짜", "접수번호", "환자명", "성별", "생년월일", "나이", "진단명", "병원",
+                  "사업", "날짜", "접수번호", "환자명", "성별", "생년월일", "나이", "진단명", "병원",
                   "신청금액", "결정금액", "예산 잔액", "집행률(%)", "후원자", "동의자",
                   "초상 공개 여부", "결과보고서", "비고", "담당자", "담당자 연락처", "담당자 메일",
                 ].map((h, i) => (
@@ -5090,7 +5089,7 @@ function AdminPage() {
                         심의
                       </button>
                     </td>
-                    <td style={{ ...stickyCell(2, td, selected.includes(r.id) ? C.deepSoft : "#fff"), textAlign: "center" }}>
+                    <td style={{ ...td, textAlign: "center" }}>
                       {(() => {
                         const pg = PROGRAMS.find((x) => x.id === r.program);
                         return pg ? (
