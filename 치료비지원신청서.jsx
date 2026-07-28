@@ -4307,6 +4307,7 @@ function AdminPage() {
   const [filter, setFilter] = useState("all");
   const [progFilter, setProgFilter] = useState("all");
   const [selected, setSelected] = useState([]);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [mailFor, setMailFor] = useState(null); // 메일 발송 대상 건
   const [mailFile, setMailFile] = useState(null); // 첨부 공문 PDF
   const [mailSent, setMailSent] = useState({}); // { [rowId]: 발송일시 }
@@ -5039,7 +5040,7 @@ function AdminPage() {
                     <td style={{ ...td, textAlign: "center", padding: "5px 7px" }}>
                       <button
                         type="button"
-                        onClick={() => setDraft({ ...r, _origId: r.id })}
+                        onClick={() => { setDraft({ ...r, _origId: r.id }); setDocsOpen(false); }}
                         style={{
                           padding: "4px 10px", fontSize: 11, fontFamily: "inherit", fontWeight: 600,
                           color: "#fff", background: C.deep, border: "none", borderRadius: 3,
@@ -5319,22 +5320,39 @@ function AdminPage() {
 
                 {/* 첨부서류 */}
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.rule}` }}>
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => setDocsOpen((v) => !v)}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
                       gap: 8,
-                      flexWrap: "wrap",
-                      marginBottom: 8,
+                      width: "100%",
+                      padding: "4px 0",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      marginBottom: docsOpen ? 8 : 0,
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>첨부서류</span>
-                    <span style={{ fontSize: 10.5, color: C.muted }}>
-                      항목을 눌러 파일을 올리거나 교체할 수 있습니다
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
+                      첨부서류
+                      <span style={{ fontWeight: 400, marginLeft: 6 }}>
+                        {(draft.docs || []).filter((d) => d.ok).length} / {(draft.docs || []).length}종
+                      </span>
                     </span>
-                  </div>
+                    <span style={{ fontSize: 11, color: C.deep, fontWeight: 600 }}>
+                      {docsOpen ? "접기 ▲" : "열기 ▼"}
+                    </span>
+                  </button>
 
+                  {docsOpen && (
+                  <>
+                  <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8 }}>
+                    항목을 눌러 파일을 올리거나 교체할 수 있습니다
+                  </div>
                   {(draft.docs || []).length > 0 ? (
                     <div style={{ display: "grid", gap: 6 }}>
                       {(draft.docs || []).map((d, i) => (
@@ -5441,6 +5459,85 @@ function AdminPage() {
                     <div style={{ fontSize: 11.5, color: C.muted, padding: "8px 0" }}>
                       등록된 첨부서류가 없습니다.
                     </div>
+                  )}
+
+                  {/* 추가 파일 업로드 */}
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${C.rule}` }}>
+                    <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 6 }}>
+                      기타 추가 파일
+                    </div>
+                    {(draft.extraDocs || []).length > 0 && (
+                      <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+                        {(draft.extraDocs || []).map((d, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "8px 11px", background: C.card,
+                              border: `1px solid ${C.rule}`, borderRadius: 3,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                                fontSize: 10, lineHeight: "16px", textAlign: "center",
+                                background: C.ok, color: "#fff",
+                              }}
+                            >
+                              ✓
+                            </span>
+                            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.ink, minWidth: 0, wordBreak: "break-all" }}>
+                              {d.fileName}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraft((s) => ({
+                                  ...s,
+                                  extraDocs: (s.extraDocs || []).filter((_, xi) => xi !== i),
+                                }))
+                              }
+                              style={{
+                                border: "none", background: "transparent", color: C.seal,
+                                cursor: "pointer", fontSize: 14, padding: "0 2px",
+                              }}
+                              title="삭제"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label
+                      style={{
+                        display: "inline-block",
+                        padding: "6px 13px", fontSize: 12, fontFamily: "inherit",
+                        fontWeight: 600, color: C.deep, background: C.card,
+                        border: `1px dashed ${C.deep}`, borderRadius: 3, cursor: "pointer",
+                      }}
+                    >
+                      + 추가 파일 업로드
+                      <input
+                        type="file"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const list = Array.from(e.target.files || []);
+                          if (!list.length) return;
+                          setDraft((s) => ({
+                            ...s,
+                            extraDocs: [
+                              ...(s.extraDocs || []),
+                              ...list.map((file) => ({ fileName: file.name })),
+                            ],
+                          }));
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                  </>
                   )}
                 </div>
               </div>
