@@ -997,9 +997,12 @@ function ApplyForm() {
               <div style={{ display: "grid", gap: 16 }}>
                 <Field label="지원대상 부합여부">
                   <div style={{ paddingTop: 4 }}>
-                    <Check checked={f.recIncome120} onChange={set("recIncome120")}>
-                      소득기준 · 기준 중위소득 120% 이내임을 확인함
-                    </Check>
+                    <div>
+                      <span style={{ fontSize: 13, color: C.muted, marginRight: 12 }}>소득기준</span>
+                      <Check checked={f.recIncome120} onChange={set("recIncome120")}>
+                        기준 중위소득 120% 이내임을 확인함
+                      </Check>
+                    </div>
                     <div style={{ marginTop: 8 }}>
                       <span style={{ fontSize: 13, color: C.muted, marginRight: 12 }}>재산기준</span>
                       <Radio name="asset" checked={f.recAsset === "200"} onChange={() => put("recAsset", "200")}>
