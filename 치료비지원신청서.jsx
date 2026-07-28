@@ -239,7 +239,7 @@ function Radio({ checked, onChange, children, name }) {
     </label>
   );
 }
-function Check({ checked, onChange, children }) {
+function Check({ checked, onChange, children, disabled }) {
   return (
     <label
       style={{
@@ -247,15 +247,17 @@ function Check({ checked, onChange, children }) {
         alignItems: "center",
         gap: 6,
         fontSize: 13.5,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         marginRight: 16,
         marginBottom: 4,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
+        disabled={disabled}
         style={{ accentColor: C.deep }}
       />
       {children}
@@ -4040,7 +4042,7 @@ const SAMPLE = [
     diagnosis: "신경모세포종", hospital: "서울성모병원", dept: "소아혈액종양내과",
     type: "basic", requestAmount: 6000000, grantAmount: 4500000,
     sponsor: "○○성당 후원", consentBy: "legal", portraitOK: false,
-    reportDate: "2026-04-20", status: "closed", reviewYM: "2025-04",
+    reportDate: "2026-04-20", status: "closed", reviewYM: "2025-04", approvalSubmitted: true,
     swName: "이수진", swPhone: "02-2258-1234", swEmail: "sj.lee@cmc.or.kr",
     note: "결과보고 접수 완료", rejectReason: "",
     docs: [
@@ -5123,7 +5125,23 @@ function AdminPage() {
                     </td>
                     <td style={{ ...td, textAlign: "center" }}>
                       {r.reportDate ? (
-                        <span style={{ color: C.ok, fontWeight: 600 }}>{r.reportDate}</span>
+                        r.approvalSubmitted ? (
+                          <span
+                            style={{
+                              color: C.ok,
+                              fontWeight: 700,
+                              border: `1.5px solid ${C.ok}`,
+                              borderRadius: 999,
+                              padding: "1px 8px",
+                              display: "inline-block",
+                            }}
+                            title="결재 상신 완료"
+                          >
+                            {r.reportDate}
+                          </span>
+                        ) : (
+                          <span style={{ color: C.ok, fontWeight: 600 }}>{r.reportDate}</span>
+                        )
                       ) : (
                         <span style={{ color: C.seal, fontWeight: 700 }}>X</span>
                       )}
@@ -5719,6 +5737,45 @@ function AdminPage() {
                     </div>
                   </div>
                 )}
+
+                <Field label="결과보고서 제출일">
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", paddingTop: 4 }}>
+                    {draft.reportDate ? (
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: C.ok,
+                          ...(draft.approvalSubmitted
+                            ? {
+                                border: `1.5px solid ${C.ok}`,
+                                borderRadius: 999,
+                                padding: "2px 12px",
+                              }
+                            : {}),
+                        }}
+                      >
+                        {draft.reportDate}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 13, color: C.muted }}>미제출</span>
+                    )}
+                    <Check
+                      checked={!!draft.approvalSubmitted}
+                      onChange={() =>
+                        setDraft((s) => ({ ...s, approvalSubmitted: !s.approvalSubmitted }))
+                      }
+                      disabled={!draft.reportDate}
+                    >
+                      결재 상신
+                    </Check>
+                  </div>
+                  {!draft.reportDate && (
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+                      결과보고서가 제출되면 결재 상신을 표시할 수 있습니다.
+                    </div>
+                  )}
+                </Field>
 
                 <Field label="지원 결정금액" hint="부결인 경우 비워 두세요.">
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
