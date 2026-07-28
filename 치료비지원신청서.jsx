@@ -38,7 +38,7 @@ const won = (n) =>
 const APPLICANT_TYPES = [
   { id: "basic", label: "기초생활수급자", desc: "차상위 본인부담경감 대상자 포함" },
   { id: "insured", label: "건강보험 가입자", desc: "국민건강보험 가입자" },
-  { id: "foreign", label: "외국인", desc: "국내 체류 중인 외국 국적자" },
+  { id: "foreign", label: "외국인", desc: "국내 체류 중인 등록 및 미등록 외국인" },
 ];
 
 /* ---------- 유형별 제출 서류 ---------- */
@@ -389,6 +389,8 @@ const emptyFamily = () => ({
   rel: "", name: "", age: "", job: "", live: "", income: "", note: "",
 });
 
+const emptySponsor = () => ({ org: "", amount: "", from: "", to: "" });
+
 function ApplyForm() {
   const [f, setF] = useState({
     type: "",
@@ -416,9 +418,6 @@ function ApplyForm() {
     costD: "", costDDetail: "",
     treatPlan: "",
 
-    /* 후원내역 */
-    sponsorOrg: "", sponsorAmt: "", sponsorFrom: "", sponsorTo: "",
-
     /* 확약 (기관명/담당자) */
     orgName: "", orgStaff: "",
 
@@ -434,6 +433,7 @@ function ApplyForm() {
   });
 
   const [family, setFamily] = useState([emptyFamily()]);
+  const [sponsors, setSponsors] = useState([emptySponsor()]);
   const [files, setFiles] = useState({});
   const [showError, setShowError] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -466,10 +466,19 @@ function ApplyForm() {
   const setFam = (i, k) => (e) =>
     setFamily((r) => r.map((row, x) => (x === i ? { ...row, [k]: e.target.value } : row)));
 
+  /* 후원내역 행 */
+  const addSponsor = () => setSponsors((r) => [...r, emptySponsor()]);
+  const delSponsor = (i) => setSponsors((r) => r.filter((_, x) => x !== i));
+  const setSpon = (i, k) => (e) =>
+    setSponsors((r) => r.map((row, x) => (x === i ? { ...row, [k]: e.target.value } : row)));
+
   /* 서류 그룹 */
   const docGroups = useMemo(() => {
     if (!f.type) return [];
-    const docs = DOCS_BY_TYPE[f.type] || [];
+    const docs = [
+      ...(DOCS_BY_TYPE[f.type] || []),
+      { id: "etc", name: "기타 서류", note: "심사에 참고할 추가 서류가 있으면 첨부", required: false },
+    ];
     return [{ title: `제출 서류 · ${typeMeta?.label}`, docs }];
   }, [f.type, typeMeta]);
 
@@ -1183,20 +1192,117 @@ function ApplyForm() {
 
             {/* 후원내역 */}
             <Section label="STEP 6" title="국가 및 민간단체 후원내역" sub="없으면 비워 두세요">
-              <div style={grid(200)}>
-                <Field label="기관명">
-                  <Input value={f.sponsorOrg} onChange={set("sponsorOrg")} />
-                </Field>
-                <Field label="지원 금액">
-                  <Inline value={f.sponsorAmt} onChange={set("sponsorAmt")} suffix="원" w="100%" type="number" />
-                </Field>
-                <Field label="지원 시작일">
-                  <Input type="date" value={f.sponsorFrom} onChange={set("sponsorFrom")} />
-                </Field>
-                <Field label="지원 종료일">
-                  <Input type="date" value={f.sponsorTo} onChange={set("sponsorTo")} />
-                </Field>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 560 }}>
+                  <thead>
+                    <tr style={{ background: C.deepSoft }}>
+                      {["기관명", "지원 금액", "지원 시작일", "지원 종료일", ""].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            padding: "8px 8px",
+                            textAlign: "left",
+                            fontWeight: 600,
+                            color: C.ink,
+                            border: `1px solid ${C.rule}`,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sponsors.map((row, i) => (
+                      <tr key={i}>
+                        <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
+                          <input
+                            value={row.org}
+                            onChange={setSpon(i, "org")}
+                            style={{
+                              width: "100%", boxSizing: "border-box", padding: "7px 8px",
+                              fontSize: 12.5, fontFamily: "inherit", border: "none",
+                              outline: "none", background: "transparent", color: C.ink,
+                            }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
+                          <input
+                            value={row.amount}
+                            onChange={setSpon(i, "amount")}
+                            type="number"
+                            placeholder="원"
+                            style={{
+                              width: "100%", boxSizing: "border-box", padding: "7px 8px",
+                              fontSize: 12.5, fontFamily: "inherit", border: "none",
+                              outline: "none", background: "transparent", color: C.ink,
+                            }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
+                          <input
+                            value={row.from}
+                            onChange={setSpon(i, "from")}
+                            type="date"
+                            style={{
+                              width: "100%", boxSizing: "border-box", padding: "7px 8px",
+                              fontSize: 12.5, fontFamily: "inherit", border: "none",
+                              outline: "none", background: "transparent", color: C.ink,
+                            }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
+                          <input
+                            value={row.to}
+                            onChange={setSpon(i, "to")}
+                            type="date"
+                            style={{
+                              width: "100%", boxSizing: "border-box", padding: "7px 8px",
+                              fontSize: 12.5, fontFamily: "inherit", border: "none",
+                              outline: "none", background: "transparent", color: C.ink,
+                            }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${C.rule}`, textAlign: "center", width: 34 }}>
+                          <button
+                            type="button"
+                            onClick={() => delSponsor(i)}
+                            disabled={sponsors.length === 1}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              color: sponsors.length === 1 ? C.rule : C.seal,
+                              cursor: sponsors.length === 1 ? "default" : "pointer",
+                              fontSize: 15,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              <button
+                type="button"
+                onClick={addSponsor}
+                style={{
+                  marginTop: 10,
+                  padding: "7px 14px",
+                  fontSize: 12.5,
+                  fontFamily: "inherit",
+                  fontWeight: 600,
+                  color: C.deep,
+                  background: C.card,
+                  border: `1px solid ${C.deep}`,
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+              >
+                + 후원내역 추가
+              </button>
             </Section>
           </>
         )}
@@ -1550,6 +1656,7 @@ function CalcRow({ label, value, strong, warn, warnMsg }) {
    출처: _양식_치료비지원_결과보고서.pdf
    ============================================================ */
 const REPORT_DOCS = [
+  { id: "r0", name: "공문", required: true },
   { id: "r1", name: "지원금 집행 관련 영수증 일체", required: true },
 ];
 
@@ -2623,7 +2730,10 @@ function CertificateForm() {
    중간보고 및 연장계획서 — 양식 원문 기준
    출처: _양식_치료비_지원_중간보고_및_연장계획서.pdf
    ============================================================ */
-const EXT_DOCS = [{ id: "x1", name: "영수증", required: true }];
+const EXT_DOCS = [
+  { id: "x0", name: "공문", required: true },
+  { id: "x1", name: "영수증", required: true },
+];
 
 const emptyExtRow = () => ({ date: "", amount: "", receiptNo: "", note: "" });
 
