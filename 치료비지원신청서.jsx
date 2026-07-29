@@ -34,6 +34,13 @@ const C = {
 const won = (n) =>
   n === "" || n == null || isNaN(n) ? "0" : Number(n).toLocaleString("ko-KR");
 
+/* 금액 입력용: 표시(쉼표) / 저장(숫자만) */
+const moneyDisplay = (v) => {
+  const s = String(v ?? "").replace(/[^\d]/g, "");
+  return s ? Number(s).toLocaleString("ko-KR") : "";
+};
+const moneyParse = (v) => String(v ?? "").replace(/[^\d]/g, "");
+
 /* ---------- 신청 유형 → 첨부서류 결정 ---------- */
 const APPLICANT_TYPES = [
   { id: "basic", label: "기초생활수급자", desc: "차상위 본인부담경감 대상자 포함" },
@@ -266,13 +273,24 @@ function Check({ checked, onChange, children, disabled }) {
 }
 
 /* 소액 인라인 입력 (금액·숫자용) */
-function Inline({ value, onChange, w = 110, suffix, ph, type = "text", invalid }) {
+function Inline({ value, onChange, w = 110, suffix, ph, type = "text", invalid, money }) {
+  const fmt = (v) => {
+    const s = String(v ?? "");
+    if (s === "") return "";
+    const n = s.replace(/[^\d]/g, "");
+    return n ? Number(n).toLocaleString("ko-KR") : "";
+  };
+  const handleMoney = (e) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    onChange({ target: { value: raw } });
+  };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 6 }}>
       <input
-        type={type}
-        value={value}
-        onChange={onChange}
+        type={money ? "text" : type}
+        inputMode={money ? "numeric" : undefined}
+        value={money ? fmt(value) : value}
+        onChange={money ? handleMoney : onChange}
         placeholder={ph}
         data-invalid={invalid || undefined}
         style={{
@@ -995,7 +1013,7 @@ function ApplyForm() {
 
                 <Field label="월가구 소득" required>
                   <div>
-                    월 <Inline value={f.incomeAmt} onChange={set("incomeAmt")} w={110} suffix="만원" type="number" invalid={err("incomeAmt")} />
+                    월 <Inline value={f.incomeAmt} onChange={set("incomeAmt")} w={110} suffix="만원" money invalid={err("incomeAmt")} />
                     <Inline value={f.householdN} onChange={set("householdN")} w={60} type="number" invalid={err("householdN")} /> 인 가구
                   </div>
                 </Field>
@@ -1004,19 +1022,19 @@ function ApplyForm() {
                   <div style={{ paddingTop: 4, display: "grid", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                       <Radio name="h" checked={f.housing === "own"} onChange={() => put("housing", "own")}>자가</Radio>
-                      <Inline value={f.hOwn} onChange={set("hOwn")} suffix="원" type="number" />
+                      <Inline value={f.hOwn} onChange={set("hOwn")} suffix="원" money />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                       <Radio name="h" checked={f.housing === "jeonse"} onChange={() => put("housing", "jeonse")}>전세</Radio>
                       <span style={{ fontSize: 13.5, color: C.muted }}>보증금</span>
-                      <Inline value={f.hJeonse} onChange={set("hJeonse")} suffix="원" type="number" />
+                      <Inline value={f.hJeonse} onChange={set("hJeonse")} suffix="원" money />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                       <Radio name="h" checked={f.housing === "wolse"} onChange={() => put("housing", "wolse")}>월세</Radio>
                       <span style={{ fontSize: 13.5, color: C.muted }}>보증금</span>
-                      <Inline value={f.hWolseDep} onChange={set("hWolseDep")} suffix="원 /" type="number" />
+                      <Inline value={f.hWolseDep} onChange={set("hWolseDep")} suffix="원 /" money />
                       <span style={{ fontSize: 13.5, color: C.muted }}>월</span>
-                      <Inline value={f.hWolseMon} onChange={set("hWolseMon")} suffix="원" type="number" />
+                      <Inline value={f.hWolseMon} onChange={set("hWolseMon")} suffix="원" money />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                       <Radio name="h" checked={f.housing === "etc"} onChange={() => put("housing", "etc")}>기타</Radio>
@@ -1028,9 +1046,9 @@ function ApplyForm() {
                 <Field label="재산 상황" hint="해당 항목에 금액을 입력하세요.">
                   <div style={{ paddingTop: 4 }}>
                     <div style={{ marginBottom: 6 }}>
-                      부동산 / 주택보증금 <Inline value={f.propReal} onChange={set("propReal")} suffix="원" type="number" />
+                      부동산 / 주택보증금 <Inline value={f.propReal} onChange={set("propReal")} suffix="원" money />
                     </div>
-                    <div>저축 및 현금 <Inline value={f.propCash} onChange={set("propCash")} suffix="원" type="number" /></div>
+                    <div>저축 및 현금 <Inline value={f.propCash} onChange={set("propCash")} suffix="원" money /></div>
                   </div>
                 </Field>
 
@@ -1039,7 +1057,7 @@ function ApplyForm() {
                     <Radio name="debt" checked={f.debtYN === "y"} onChange={() => put("debtYN", "y")}>유</Radio>
                     {f.debtYN === "y" && (
                       <>
-                        <Inline value={f.debtAmt} onChange={set("debtAmt")} suffix="원" type="number" />
+                        <Inline value={f.debtAmt} onChange={set("debtAmt")} suffix="원" money />
                         <Inline value={f.debtUse} onChange={set("debtUse")} w={150} ph="사용용도" />
                       </>
                     )}
@@ -1059,7 +1077,7 @@ function ApplyForm() {
                     <div style={{ paddingTop: 4 }}>
                       <Radio name="wf" checked={f.welfare === "basic"} onChange={() => put("welfare", "basic")}>국민기초생활수급권자</Radio>
                       {f.welfare === "basic" && (
-                        <span>월 정기보조금 <Inline value={f.basicSubsidy} onChange={set("basicSubsidy")} suffix="원" type="number" /></span>
+                        <span>월 정기보조금 <Inline value={f.basicSubsidy} onChange={set("basicSubsidy")} suffix="원" money /></span>
                       )}
                       <div style={{ marginTop: 4 }}>
                         <Radio name="wf" checked={f.welfare === "near"} onChange={() => put("welfare", "near")}>차상위</Radio>
@@ -1114,7 +1132,7 @@ function ApplyForm() {
                     <Inline value={f.costAFrom} onChange={set("costAFrom")} type="date" w={140} />
                     ~ <Inline value={f.costATo} onChange={set("costATo")} type="date" w={140} />
                   </div>
-                  <Inline value={f.costA} onChange={set("costA")} suffix="원" w={150} type="number" />
+                  <Inline value={f.costA} onChange={set("costA")} suffix="원" w={150} money />
                 </div>
 
                 <div
@@ -1143,7 +1161,7 @@ function ApplyForm() {
                       style={{ ...inputStyle, marginTop: 8, resize: "vertical", lineHeight: 1.6 }}
                     />
                   </div>
-                  <Inline value={f.costB} onChange={set("costB")} suffix="원" w={150} type="number" />
+                  <Inline value={f.costB} onChange={set("costB")} suffix="원" w={150} money />
                 </div>
 
                 {/* 자동 계산 */}
@@ -1166,7 +1184,7 @@ function ApplyForm() {
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 600 }}>의료준비금 (D)</div>
-                      <Inline value={f.costD} onChange={set("costD")} suffix="원" w={150} type="number" />
+                      <Inline value={f.costD} onChange={set("costD")} suffix="원" w={150} money />
                     </div>
                     <textarea
                       value={f.costDDetail}
@@ -1238,9 +1256,9 @@ function ApplyForm() {
                         </td>
                         <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
                           <input
-                            value={row.amount}
-                            onChange={setSpon(i, "amount")}
-                            type="number"
+                            value={moneyDisplay(row.amount)}
+                            onChange={(e) => setSpon(i, "amount")({ target: { value: moneyParse(e.target.value) } })}
+                            inputMode="numeric"
                             placeholder="원"
                             style={{
                               width: "100%", boxSizing: "border-box", padding: "7px 8px",
@@ -2004,7 +2022,7 @@ function ReportForm({ rows, setRows }) {
                 onChange={set("grantAmount")}
                 suffix="원"
                 w={150}
-                type="number"
+                money
                 invalid={err("grantAmount")}
               />
             </div>
@@ -2025,7 +2043,7 @@ function ReportForm({ rows, setRows }) {
                 onChange={set("usedAmount")}
                 suffix="원"
                 w={150}
-                type="number"
+                money
                 invalid={err("usedAmount")}
               />
             </div>
@@ -2047,7 +2065,7 @@ function ReportForm({ rows, setRows }) {
                 }}
               >
                 <span style={{ fontSize: 13, fontWeight: 600 }}>반환금액</span>
-                <Inline value={r.refundAmount} onChange={set("refundAmount")} suffix="원" w={150} type="number" />
+                <Inline value={r.refundAmount} onChange={set("refundAmount")} suffix="원" w={150} money />
               </div>
               <div
                 style={{
@@ -2195,9 +2213,9 @@ function ReportForm({ rows, setRows }) {
                         </td>
                         <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
                           <input
-                            type="number"
-                            value={row.amount}
-                            onChange={setRow(i, "amount")}
+                            inputMode="numeric"
+                            value={moneyDisplay(row.amount)}
+                            onChange={(e) => setRow(i, "amount")({ target: { value: moneyParse(e.target.value) } })}
                             style={{ ...cellInput, textAlign: "right" }}
                           />
                         </td>
@@ -3115,7 +3133,7 @@ function ExtensionForm({ allRows, setAllRows }) {
                 onChange={set("grantAmount")}
                 suffix="원"
                 w={150}
-                type="number"
+                money
                 invalid={err("grantAmount")}
               />
             </div>
@@ -3136,7 +3154,7 @@ function ExtensionForm({ allRows, setAllRows }) {
                 onChange={set("usedAmount")}
                 suffix="원"
                 w={150}
-                type="number"
+                money
                 invalid={err("usedAmount")}
               />
             </div>
@@ -3311,9 +3329,9 @@ function ExtensionForm({ allRows, setAllRows }) {
                         </td>
                         <td style={{ border: `1px solid ${C.rule}`, padding: 0 }}>
                           <input
-                            type="number"
-                            value={row.amount}
-                            onChange={setRow(i, "amount")}
+                            inputMode="numeric"
+                            value={moneyDisplay(row.amount)}
+                            onChange={(e) => setRow(i, "amount")({ target: { value: moneyParse(e.target.value) } })}
                             style={{ ...cellInput, textAlign: "right" }}
                           />
                         </td>
@@ -4522,7 +4540,7 @@ function AdminPage() {
                     }
                     suffix="원"
                     w={160}
-                    type="number"
+                    money
                     invalid={
                       editingBudget &&
                       Number(budgetInput[p.id] || 0) < progStats[p.id].used
@@ -5641,7 +5659,11 @@ function AdminPage() {
                     </select>
                   </Field>
                   <Field label="신청금액">
-                    <Input type="number" value={draft.requestAmount || ""} onChange={setD("requestAmount")} />
+                    <Input
+                      inputMode="numeric"
+                      value={moneyDisplay(draft.requestAmount)}
+                      onChange={(e) => setD("requestAmount")({ target: { value: moneyParse(e.target.value) } })}
+                    />
                   </Field>
                 </div>
                 <div style={{ ...grid(180), marginTop: 12 }}>
@@ -5752,7 +5774,7 @@ function AdminPage() {
 
                 <Field label="지원 결정금액" hint="부결인 경우 비워 두세요.">
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Inline value={draft.grantAmount} onChange={setD("grantAmount")} suffix="원" w={170} type="number" />
+                    <Inline value={draft.grantAmount} onChange={setD("grantAmount")} suffix="원" w={170} money />
                     <span style={{ fontSize: 11.5, color: C.muted }}>
                       신청 {won(draft.requestAmount)}원 · {PROGRAM_LABEL[draft.program] || "사업"}{" "}
                       잔액 {won(draft.program ? progStats[draft.program].left : 0)}원
