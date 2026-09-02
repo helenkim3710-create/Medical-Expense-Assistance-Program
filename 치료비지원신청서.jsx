@@ -41,6 +41,28 @@ const moneyDisplay = (v) => {
 };
 const moneyParse = (v) => String(v ?? "").replace(/[^\d]/g, "");
 
+/* ---------- 데모용 임시저장 (브라우저 세션 유지) ---------- */
+const DRAFT_STORE = {};
+function saveDraft(key, data) {
+  try {
+    DRAFT_STORE[key] = { data, at: new Date().toISOString() };
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function loadDraft(key) {
+  return DRAFT_STORE[key] || null;
+}
+function clearDraft(key) {
+  delete DRAFT_STORE[key];
+}
+function draftTimeText(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 /* ---------- 신청 유형 → 첨부서류 결정 ---------- */
 const APPLICANT_TYPES = [
   { id: "basic", label: "기초생활수급자", desc: "차상위 본인부담경감 대상자 포함" },
@@ -411,7 +433,7 @@ const emptyFamily = () => ({
 
 const emptySponsor = () => ({ org: "", amount: "", from: "", to: "" });
 
-function ApplyForm() {
+function ApplyForm({ onNotify, setRows }) {
   const [f, setF] = useState({
     type: "",
     separated: false,
@@ -458,6 +480,24 @@ function ApplyForm() {
   const [showError, setShowError] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [page, setPage] = useState(1);
+  const [savedAt, setSavedAt] = useState(loadDraft("apply")?.at || null);
+  const [restored, setRestored] = useState(false);
+
+  /* 임시저장 불러오기 (최초 1회) */
+  React.useEffect(() => {
+    const d = loadDraft("apply");
+    if (d && d.data && !restored) {
+      if (d.data.f) setF(d.data.f);
+      if (d.data.family) setFamily(d.data.family);
+      if (d.data.sponsors) setSponsors(d.data.sponsors);
+      setRestored(true);
+    }
+  }, []);
+
+  const doSave = () => {
+    saveDraft("apply", { f, family, sponsors });
+    setSavedAt(new Date().toISOString());
+  };
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -575,6 +615,8 @@ function ApplyForm() {
     setShowError(true);
     if (canSubmit) {
       setSubmitted(true);
+      clearDraft("apply");
+      if (onNotify) onNotify("신청서", f.ptName || "신규 신청자", `${typeMeta?.label || ""} · ${f.diagnosis || ""}`.trim());
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -774,6 +816,41 @@ function ApplyForm() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {savedAt && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "9px 14px",
+              background: C.okSoft,
+              border: `1px solid #C4DED0`,
+              borderRadius: 3,
+              marginBottom: 16,
+              fontSize: 12.5,
+              color: C.ink,
+            }}
+          >
+            <span>💾</span>
+            <span>
+              임시저장됨 · {draftTimeText(savedAt)}
+              <span style={{ color: C.muted, marginLeft: 6 }}>
+                (같은 브라우저에서 이어서 작성할 수 있습니다)
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => { clearDraft("apply"); setSavedAt(null); }}
+              style={{
+                marginLeft: "auto", border: "none", background: "transparent",
+                color: C.muted, cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+              }}
+            >
+              저장 삭제
+            </button>
           </div>
         )}
 
@@ -1586,6 +1663,27 @@ function ApplyForm() {
             )}
           </div>
 
+          {f.type && (
+            <button
+              type="button"
+              onClick={doSave}
+              style={{
+                padding: "10px 18px",
+                fontSize: 13.5,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                color: C.muted,
+                background: C.card,
+                border: `1px solid ${C.rule}`,
+                borderRadius: 3,
+                cursor: "pointer",
+                marginRight: "auto",
+              }}
+            >
+              임시저장
+            </button>
+          )}
+
           {f.type && page > 1 && (
             <button
               type="button"
@@ -1700,10 +1798,11 @@ function findByLookup(rows, lookup) {
   );
 }
 
-function ReportForm({ rows, setRows }) {
+function ReportForm({ rows, setRows, onNotify }) {
   const [step, setStep] = useState("lookup"); // lookup | form | done
   const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
   const [lookupError, setLookupError] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
   const [r, setR] = useState({
     /* 환자 정보 */
     ptName: "", ptGender: "", ptBirth: "", ptAge: "",
@@ -1775,6 +1874,8 @@ function ReportForm({ rows, setRows }) {
           )
         );
       }
+      clearDraft(`report:${lookup.matchedId}`);
+      if (onNotify) onNotify("결과보고서", r.ptName || lookup.ptName || "", `${lookup.matchedId || ""} · ${r.hospital || ""}`.trim());
       setStep("done");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
@@ -1872,18 +1973,26 @@ function ReportForm({ rows, setRows }) {
               }
               setLookupError("");
               setLookup((s) => ({ ...s, matchedId: match.id }));
-              setR((s) => ({
-                ...s,
-                ptName: match.ptName,
-                ptGender: match.gender || "",
-                ptBirth: match.birth || "",
-                hospital: match.hospital || "",
-                dept: match.dept || "",
-                diagnosis: match.diagnosis || "",
-                applyDate: match.submittedAt || "",
-                grantAmount: match.grantAmount || "",
-                swName: match.swName || "",
-              }));
+              const saved = loadDraft(`report:${match.id}`);
+              if (saved && saved.data) {
+                if (saved.data.r) setR(saved.data.r);
+                if (saved.data.settle) setSettle(saved.data.settle);
+                if (typeof saved.data.useSettle === "boolean") setUseSettle(saved.data.useSettle);
+                setSavedAt(saved.at);
+              } else {
+                setR((s) => ({
+                  ...s,
+                  ptName: match.ptName,
+                  ptGender: match.gender || "",
+                  ptBirth: match.birth || "",
+                  hospital: match.hospital || "",
+                  dept: match.dept || "",
+                  diagnosis: match.diagnosis || "",
+                  applyDate: match.submittedAt || "",
+                  grantAmount: match.grantAmount || "",
+                  swName: match.swName || "",
+                }));
+              }
               setStep("form");
             }}
             style={{
@@ -1972,6 +2081,18 @@ function ReportForm({ rows, setRows }) {
         </div>
 
         {/* 01 환자 정보 */}
+        {savedAt && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "9px 14px", background: C.okSoft, border: `1px solid #C4DED0`,
+              borderRadius: 3, marginBottom: 16, fontSize: 12.5, color: C.ink,
+            }}
+          >
+            <span>💾</span>
+            <span>임시저장된 내용을 불러왔습니다 · {draftTimeText(savedAt)}</span>
+          </div>
+        )}
         <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
           <div
             style={{
@@ -2419,6 +2540,27 @@ function ReportForm({ rows, setRows }) {
           </div>
           <button
             type="button"
+            onClick={() => {
+              saveDraft(`report:${lookup.matchedId}`, { r, settle, useSettle });
+              setSavedAt(new Date().toISOString());
+            }}
+            style={{
+              padding: "10px 18px",
+              fontSize: 13.5,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              color: C.muted,
+              background: C.card,
+              border: `1px solid ${C.rule}`,
+              borderRadius: 3,
+              cursor: "pointer",
+              marginRight: "auto",
+            }}
+          >
+            임시저장
+          </button>
+          <button
+            type="button"
             onClick={submit}
             style={{
               padding: "10px 30px",
@@ -2453,10 +2595,11 @@ const CERT_DOCS = [
   },
 ];
 
-function CertificateForm({ rows }) {
+function CertificateForm({ rows, onNotify }) {
   const [step, setStep] = useState("lookup"); // lookup | form
   const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
   const [lookupError, setLookupError] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
   const [done, setDone] = useState(false);
   const [showError, setShowError] = useState(false);
   const [files, setFiles] = useState({});
@@ -2502,6 +2645,8 @@ function CertificateForm({ rows }) {
   const submit = () => {
     setShowError(true);
     if (canSubmit) {
+      clearDraft(`cert:${lookup.matchedId}`);
+      if (onNotify) onNotify("지원증서 전달", c.ptName || lookup.ptName || "", `${lookup.matchedId || ""} · ${c.hospital || ""}`.trim());
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
@@ -2599,16 +2744,22 @@ function CertificateForm({ rows }) {
               setLookupError("");
               setLookup((s) => ({ ...s, matchedId: match.id }));
               const ym = match.reviewYM || "";
-              setC((s) => ({
-                ...s,
-                ptName: match.ptName,
-                diagnosis: match.diagnosis || "",
-                hospital: match.hospital || "",
-                swName: match.swName || "",
-                swPhone: match.swPhone || "",
-                grantYear: ym ? ym.slice(0, 4) : "",
-                grantMonth: ym ? String(Number(ym.slice(5, 7))) : "",
-              }));
+              const saved = loadDraft(`cert:${match.id}`);
+              if (saved && saved.data && saved.data.c) {
+                setC(saved.data.c);
+                setSavedAt(saved.at);
+              } else {
+                setC((s) => ({
+                  ...s,
+                  ptName: match.ptName,
+                  diagnosis: match.diagnosis || "",
+                  hospital: match.hospital || "",
+                  swName: match.swName || "",
+                  swPhone: match.swPhone || "",
+                  grantYear: ym ? ym.slice(0, 4) : "",
+                  grantMonth: ym ? String(Number(ym.slice(5, 7))) : "",
+                }));
+              }
               setStep("form");
             }}
             style={{
@@ -2646,6 +2797,18 @@ function CertificateForm({ rows }) {
         </div>
 
         {/* 01 환자 정보 */}
+        {savedAt && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "9px 14px", background: C.okSoft, border: `1px solid #C4DED0`,
+              borderRadius: 3, marginBottom: 16, fontSize: 12.5, color: C.ink,
+            }}
+          >
+            <span>💾</span>
+            <span>임시저장된 내용을 불러왔습니다 · {draftTimeText(savedAt)}</span>
+          </div>
+        )}
         <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
           <div
             style={{
@@ -2812,6 +2975,20 @@ function CertificateForm({ rows }) {
           </div>
           <button
             type="button"
+            onClick={() => {
+              saveDraft(`cert:${lookup.matchedId}`, { c });
+              setSavedAt(new Date().toISOString());
+            }}
+            style={{
+              padding: "10px 18px", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit",
+              color: C.muted, background: C.card, border: `1px solid ${C.rule}`,
+              borderRadius: 3, cursor: "pointer", marginRight: "auto",
+            }}
+          >
+            임시저장
+          </button>
+          <button
+            type="button"
             onClick={submit}
             style={{
               padding: "10px 30px",
@@ -2844,10 +3021,11 @@ const EXT_DOCS = [
 
 const emptyExtRow = () => ({ date: "", amount: "", receiptNo: "", note: "" });
 
-function ExtensionForm({ allRows, setAllRows }) {
+function ExtensionForm({ allRows, setAllRows, onNotify }) {
   const [step, setStep] = useState("lookup"); // lookup | form
   const [lookup, setLookup] = useState({ hospital: "", swName: "", ptName: "" });
   const [lookupError, setLookupError] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
   const [done, setDone] = useState(false);
   const [showError, setShowError] = useState(false);
   const [files, setFiles] = useState({});
@@ -2928,6 +3106,8 @@ function ExtensionForm({ allRows, setAllRows }) {
           )
         );
       }
+      clearDraft(`ext:${x.receiptNo}`);
+      if (onNotify) onNotify("연장계획서", x.ptName || "", `${x.receiptNo || ""} · ${x.hospital || ""}`.trim());
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
@@ -3036,18 +3216,26 @@ function ExtensionForm({ allRows, setAllRows }) {
               }
               setLookupError("");
               setLookup((s) => ({ ...s, matchedId: match.id }));
-              setX((s) => ({
-                ...s,
-                receiptNo: match.id,
-                ptName: match.ptName || "",
-                ptGender: match.gender || "",
-                ptBirth: match.birth || "",
-                hospital: match.hospital || "",
-                diagnosis: match.diagnosis || "",
-                applyPeriod: match.reviewYM ? match.reviewYM.replace("-", "년 ") + "월" : "",
-                grantAmount: match.grantAmount || "",
-                swName: match.swName || "",
-              }));
+              const saved = loadDraft(`ext:${match.id}`);
+              if (saved && saved.data && saved.data.x) {
+                setX(saved.data.x);
+                if (saved.data.rows) setRows(saved.data.rows);
+                if (typeof saved.data.useSettle === "boolean") setUseSettle(saved.data.useSettle);
+                setSavedAt(saved.at);
+              } else {
+                setX((s) => ({
+                  ...s,
+                  receiptNo: match.id,
+                  ptName: match.ptName || "",
+                  ptGender: match.gender || "",
+                  ptBirth: match.birth || "",
+                  hospital: match.hospital || "",
+                  diagnosis: match.diagnosis || "",
+                  applyPeriod: match.reviewYM ? match.reviewYM.replace("-", "년 ") + "월" : "",
+                  grantAmount: match.grantAmount || "",
+                  swName: match.swName || "",
+                }));
+              }
               setStep("form");
             }}
             style={{
@@ -3084,6 +3272,18 @@ function ExtensionForm({ allRows, setAllRows }) {
         </div>
 
         {/* 01 환자 정보 */}
+        {savedAt && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "9px 14px", background: C.okSoft, border: `1px solid #C4DED0`,
+              borderRadius: 3, marginBottom: 16, fontSize: 12.5, color: C.ink,
+            }}
+          >
+            <span>💾</span>
+            <span>임시저장된 내용을 불러왔습니다 · {draftTimeText(savedAt)}</span>
+          </div>
+        )}
         <Section label="01" title="환자 정보" sub="신청 내용에서 자동으로 불러온 정보입니다">
           <div
             style={{
@@ -3535,6 +3735,20 @@ function ExtensionForm({ allRows, setAllRows }) {
               </>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              saveDraft(`ext:${x.receiptNo}`, { x, rows, useSettle });
+              setSavedAt(new Date().toISOString());
+            }}
+            style={{
+              padding: "10px 18px", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit",
+              color: C.muted, background: C.card, border: `1px solid ${C.rule}`,
+              borderRadius: 3, cursor: "pointer", marginRight: "auto",
+            }}
+          >
+            임시저장
+          </button>
           <button
             type="button"
             onClick={submit}
@@ -4329,8 +4543,7 @@ const stickyCell = (idx, base, bg) => ({
   boxShadow: idx === 1 ? "2px 0 4px -2px rgba(0,0,0,0.18)" : undefined,
 });
 
-function AdminPage() {
-  const [rows, setRows] = useState(SAMPLE);
+function AdminPage({ rows, setRows, notifications = [], setNotifications }) {
   const [budgets, setBudgets] = useState(null); // {leukemia, transplant, emergency}
   const [budgetInput, setBudgetInput] = useState({ ...DEFAULT_BUDGET });
   const [year, setYear] = useState("2026");
@@ -4345,6 +4558,7 @@ function AdminPage() {
   const [mailSent, setMailSent] = useState({}); // { [rowId]: 발송일시 }
   const [reportMailFor, setReportMailFor] = useState(null); // 결과보고서 요청 메일 대상
   const [reportMailSent, setReportMailSent] = useState({});
+  const [notifOpen, setNotifOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [draft, setDraft] = useState(null);
 
@@ -4635,6 +4849,178 @@ function AdminPage() {
   return (
     <div style={{ fontFamily: font, paddingBottom: 50 }}>
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 20px 0" }}>
+        {/* 알림 */}
+        {(() => {
+          const unread = notifications.filter((n) => !n.read).length;
+          const TYPE_COLOR = {
+            "신청서": C.deep,
+            "결과보고서": "#3E7A5A",
+            "지원증서 전달": "#8A6D2F",
+            "연장계획서": "#7A4A8A",
+          };
+          return (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifOpen((v) => !v);
+                    if (!notifOpen && unread && setNotifications) {
+                      setNotifications((s) => s.map((n) => ({ ...n, read: true })));
+                    }
+                  }}
+                  style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    fontWeight: 600,
+                    color: C.ink,
+                    background: C.card,
+                    border: `1px solid ${unread ? C.seal : C.rule}`,
+                    borderRadius: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  🔔 알림
+                  {unread > 0 && (
+                    <span
+                      style={{
+                        minWidth: 18,
+                        height: 18,
+                        padding: "0 5px",
+                        borderRadius: 999,
+                        background: C.seal,
+                        color: "#fff",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        lineHeight: "18px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {unread}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: C.muted }}>{notifOpen ? "▲" : "▼"}</span>
+                </button>
+              </div>
+
+              {notifOpen && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    background: C.card,
+                    border: `1px solid ${C.rule}`,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "11px 15px",
+                      borderBottom: `1px solid ${C.rule}`,
+                      background: C.deepSoft,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                      알림 내역 · 총 {notifications.length}건
+                    </span>
+                    {notifications.length > 0 && setNotifications && (
+                      <button
+                        type="button"
+                        onClick={() => setNotifications([])}
+                        style={{
+                          padding: "4px 10px",
+                          fontSize: 11.5,
+                          fontFamily: "inherit",
+                          fontWeight: 600,
+                          color: C.muted,
+                          background: C.card,
+                          border: `1px solid ${C.rule}`,
+                          borderRadius: 3,
+                          cursor: "pointer",
+                        }}
+                      >
+                        전체 지우기
+                      </button>
+                    )}
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 13, color: C.muted }}>
+                      새 알림이 없습니다.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 11,
+                            padding: "11px 15px",
+                            borderBottom: `1px solid ${C.rule}`,
+                          }}
+                        >
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              marginTop: 1,
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 2,
+                              color: "#fff",
+                              background: TYPE_COLOR[n.type] || C.deep,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {n.type}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>
+                              {n.name} 님의 {n.type}이(가) 제출되었습니다.
+                            </div>
+                            {n.detail && (
+                              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{n.detail}</div>
+                            )}
+                            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{n.at}</div>
+                          </div>
+                          {setNotifications && (
+                            <button
+                              type="button"
+                              onClick={() => setNotifications((s) => s.filter((x) => x.id !== n.id))}
+                              style={{
+                                border: "none",
+                                background: "transparent",
+                                color: C.muted,
+                                cursor: "pointer",
+                                fontSize: 14,
+                                padding: "0 2px",
+                                flexShrink: 0,
+                              }}
+                              title="삭제"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* 결과보고서 제출 안내 대상 */}
         {(() => {
           const due = rows
@@ -8440,7 +8826,17 @@ function EvalRow({ label, value, onChange, note, onNote, sub }) {
 export default function App() {
   const [screen, setScreen] = useState("apply");
   const [rows, setRows] = useState(SAMPLE);
+  const [notifications, setNotifications] = useState([]);
   const font = "'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif";
+
+  const addNotification = (type, name, detail) => {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    setNotifications((s) => [
+      { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, name, detail, at: stamp, read: false },
+      ...s,
+    ]);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: C.paper, fontFamily: font, color: C.ink }}>
@@ -8495,21 +8891,21 @@ export default function App() {
       </div>
 
       {screen === "apply" ? (
-        <ApplyForm />
+        <ApplyForm onNotify={addNotification} setRows={setRows} />
       ) : screen === "my" ? (
         <MyApplications />
       ) : screen === "report" ? (
-        <ReportForm rows={rows} setRows={setRows} />
+        <ReportForm rows={rows} setRows={setRows} onNotify={addNotification} />
       ) : screen === "cert" ? (
-        <CertificateForm rows={rows} />
+        <CertificateForm rows={rows} onNotify={addNotification} />
       ) : screen === "ext" ? (
-        <ExtensionForm allRows={rows} setAllRows={setRows} />
+        <ExtensionForm allRows={rows} setAllRows={setRows} onNotify={addNotification} />
       ) : screen === "advisor" ? (
         <AdvisorPage rows={rows} setRows={setRows} />
       ) : screen === "committee" ? (
         <CommitteePage rows={rows} setRows={setRows} />
       ) : (
-        <AdminPage rows={rows} setRows={setRows} />
+        <AdminPage rows={rows} setRows={setRows} notifications={notifications} setNotifications={setNotifications} />
       )}
     </div>
   );
